@@ -14,6 +14,19 @@ export const server = new Hono()
 server.use(logger())
 server.use(cors())
 
+const apiToken = process.env.API_TOKEN
+
+server.use("*", async (c, next) => {
+  if (apiToken) {
+    const auth = c.req.header("Authorization")
+    const token = auth?.startsWith("Bearer ") ? auth.slice(7) : auth
+    if (token !== apiToken) {
+      return c.json({ error: "Unauthorized" }, 401)
+    }
+  }
+  return next()
+})
+
 server.get("/", (c) => c.text("Server running"))
 
 server.route("/chat/completions", completionRoutes)

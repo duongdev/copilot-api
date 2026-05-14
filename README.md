@@ -95,19 +95,29 @@ docker run -p 4141:4141 -e GH_TOKEN=your_github_token_here copilot-api
 docker run -p 4141:4141 -e GH_TOKEN=your_token copilot-api start --verbose --port 4141
 ```
 
-### Docker Compose Example
+### Docker Compose
 
-```yaml
-version: "3.8"
-services:
-  copilot-api:
-    build: .
-    ports:
-      - "4141:4141"
-    environment:
-      - GH_TOKEN=your_github_token_here
-    restart: unless-stopped
+A `docker-compose.yml` is included. Create a `.env` file in the project root:
+
+```env
+GH_TOKEN=your_github_token
+API_TOKEN=your-secret-token
 ```
+
+Then start the server:
+
+```sh
+docker compose up -d
+```
+
+Token data is persisted in `./copilot-data` on your host.
+
+## Environment Variables
+
+| Variable    | Description                                                                                   |
+| ----------- | --------------------------------------------------------------------------------------------- |
+| `GH_TOKEN`  | GitHub token (alternative to `--github-token` flag)                                          |
+| `API_TOKEN` | Protect the server with a bearer token. All requests must include `Authorization: Bearer <token>`. If unset, no authentication is enforced. |
 
 The Docker image includes:
 
@@ -306,7 +316,7 @@ Here is an example `.claude/settings.json` file:
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:4141",
-    "ANTHROPIC_AUTH_TOKEN": "dummy",
+    "ANTHROPIC_AUTH_TOKEN": "your-api-token",
     "ANTHROPIC_MODEL": "gpt-4.1",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "gpt-4.1",
     "ANTHROPIC_SMALL_FAST_MODEL": "gpt-4.1",

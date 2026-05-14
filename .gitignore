@@ -3,6 +3,7 @@ node_modules/
 
 # local env
 *.local
+.env
 
 # aider
 .aider*
