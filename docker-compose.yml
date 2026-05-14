@@ -1,0 +1,10 @@
+services:
+  copilot-api:
+    build: .
+    ports:
+      - "4141:4141"
+    env_file:
+      - .env
+    volumes:
+      - ./copilot-data:/root/.local/share/copilot-api
+    restart: unless-stopped
