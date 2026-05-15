@@ -41,16 +41,10 @@ export function translateChunkToAnthropicEvents(
         model: chunk.model,
         stop_reason: null,
         stop_sequence: null,
+        // usage is backfilled from the final chunk in handler.ts
         usage: {
-          input_tokens:
-            (chunk.usage?.prompt_tokens ?? 0)
-            - (chunk.usage?.prompt_tokens_details?.cached_tokens ?? 0),
-          output_tokens: 0, // Will be updated in message_delta when finished
-          ...(chunk.usage?.prompt_tokens_details?.cached_tokens
-            !== undefined && {
-            cache_read_input_tokens:
-              chunk.usage.prompt_tokens_details.cached_tokens,
-          }),
+          input_tokens: 0,
+          output_tokens: 0,
         },
       },
     })

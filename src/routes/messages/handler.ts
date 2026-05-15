@@ -14,6 +14,7 @@ import {
 
 import {
   type AnthropicMessagesPayload,
+  type AnthropicStreamEventData,
   type AnthropicStreamState,
 } from "./anthropic-types"
 import {
@@ -62,6 +63,12 @@ export async function handleCompletion(c: Context) {
       toolCalls: {},
     }
 
+    // Buffer all events so we can backfill usage from the final chunk.
+    // OpenAI streams usage in a trailing chunk with empty choices — separate from
+    // the finish_reason chunk — so both message_start and message_delta need patching.
+    const buffered: Array<AnthropicStreamEventData> = []
+    let finalUsage: ChatCompletionChunk["usage"] | undefined
+
     for await (const rawEvent of response) {
       consola.debug("Copilot raw stream event:", JSON.stringify(rawEvent))
       if (rawEvent.data === "[DONE]") {
@@ -72,16 +79,46 @@ export async function handleCompletion(c: Context) {
         continue
       }
 
-      const chunk = JSON.parse(rawEvent.data) as ChatCompletionChunk
-      const events = translateChunkToAnthropicEvents(chunk, streamState)
-
-      for (const event of events) {
-        consola.debug("Translated Anthropic event:", JSON.stringify(event))
-        await stream.writeSSE({
-          event: event.type,
-          data: JSON.stringify(event),
-        })
+      let chunk: ChatCompletionChunk
+      try {
+        chunk = JSON.parse(rawEvent.data) as ChatCompletionChunk
+      } catch {
+        consola.warn("Failed to parse stream chunk, skipping:", rawEvent.data)
+        continue
       }
+
+      if (chunk.usage) {
+        finalUsage = chunk.usage
+      }
+      buffered.push(...translateChunkToAnthropicEvents(chunk, streamState))
+    }
+
+    if (finalUsage) {
+      const cached = finalUsage.prompt_tokens_details?.cached_tokens ?? 0
+      const usagePatch = {
+        input_tokens: finalUsage.prompt_tokens - cached,
+        output_tokens: finalUsage.completion_tokens,
+        ...(cached > 0 && { cache_read_input_tokens: cached }),
+      }
+
+      for (const event of buffered) {
+        if (event.type === "message_start") {
+          event.message.usage = {
+            ...usagePatch,
+            output_tokens: 0, // always 0 in message_start per Anthropic spec
+          }
+        } else if (event.type === "message_delta") {
+          event.usage = usagePatch
+        }
+      }
+    }
+
+    for (const event of buffered) {
+      consola.debug("Translated Anthropic event:", JSON.stringify(event))
+      await stream.writeSSE({
+        event: event.type,
+        data: JSON.stringify(event),
+      })
     }
   })
 }

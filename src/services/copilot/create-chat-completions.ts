@@ -182,6 +182,7 @@ export interface ChatCompletionsPayload {
   response_format?: { type: "json_object" } | null
   seed?: number | null
   tools?: Array<Tool> | null
+  stream_options?: { include_usage: boolean } | null
   tool_choice?:
     | "none"
     | "auto"
