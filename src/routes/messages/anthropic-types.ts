@@ -25,9 +25,15 @@ export interface AnthropicMessagesPayload {
   service_tier?: "auto" | "standard_only"
 }
 
+export interface AnthropicCacheControl {
+  type: "ephemeral"
+}
+
 export interface AnthropicTextBlock {
   type: "text"
   text: string
+  // Accepted in payloads but not forwarded — Copilot handles caching implicitly
+  cache_control?: AnthropicCacheControl
 }
 
 export interface AnthropicImageBlock {
@@ -44,6 +50,7 @@ export interface AnthropicToolResultBlock {
   tool_use_id: string
   content: string
   is_error?: boolean
+  cache_control?: AnthropicCacheControl
 }
 
 export interface AnthropicToolUseBlock {
@@ -84,6 +91,7 @@ export interface AnthropicTool {
   name: string
   description?: string
   input_schema: Record<string, unknown>
+  cache_control?: AnthropicCacheControl
 }
 
 export interface AnthropicResponse {
