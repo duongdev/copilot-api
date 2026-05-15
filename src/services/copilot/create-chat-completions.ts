@@ -5,6 +5,22 @@ import { copilotHeaders, copilotBaseUrl } from "~/lib/api-config"
 import { HTTPError } from "~/lib/error"
 import { state } from "~/lib/state"
 
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 1000
+
+const isRetryable = (error: unknown): boolean => {
+  if (error instanceof TypeError) {
+    const msg = error.message.toLowerCase()
+    return (
+      msg.includes("socket")
+      || msg.includes("connection")
+      || msg.includes("network")
+      || msg.includes("fetch")
+    )
+  }
+  return false
+}
+
 export const createChatCompletions = async (
   payload: ChatCompletionsPayload,
 ) => {
@@ -28,22 +44,47 @@ export const createChatCompletions = async (
     "X-Initiator": isAgentCall ? "agent" : "user",
   }
 
-  const response = await fetch(`${copilotBaseUrl(state)}/chat/completions`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  })
+  let lastError: unknown
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(
+        `${copilotBaseUrl(state)}/chat/completions`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        },
+      )
 
-  if (!response.ok) {
-    consola.error("Failed to create chat completions", response)
-    throw new HTTPError("Failed to create chat completions", response)
+      if (!response.ok) {
+        consola.error("Failed to create chat completions", response)
+        throw new HTTPError("Failed to create chat completions", response)
+      }
+
+      if (payload.stream) {
+        return events(response)
+      }
+
+      return (await response.json()) as ChatCompletionResponse
+    } catch (error) {
+      if (error instanceof HTTPError) throw error
+
+      if (isRetryable(error) && attempt < MAX_RETRIES) {
+        consola.warn(
+          `Socket error on attempt ${attempt}/${MAX_RETRIES}, retrying in ${RETRY_DELAY_MS}ms...`,
+        )
+        await new Promise((resolve) =>
+          setTimeout(resolve, RETRY_DELAY_MS * attempt),
+        )
+        lastError = error
+        continue
+      }
+
+      throw error
+    }
   }
 
-  if (payload.stream) {
-    return events(response)
-  }
-
-  return (await response.json()) as ChatCompletionResponse
+  throw lastError
 }
 
 // Streaming types
